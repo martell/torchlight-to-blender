@@ -666,7 +666,154 @@ def VectorSum(vec1,vec2):
 
 def calcBoneLength(vec):
     return math.sqrt(vec[0]**2+vec[1]**2+vec[2]**2)
-               
+
+def bParseAnimationSkeleton(xmldoc):
+    OGRE_Bones = {}
+        
+    for bones in xmldoc.getElementsByTagName('bones'):
+    
+        for bone in bones.childNodes:
+            OGRE_Bone = {}
+            if bone.localName == 'bone':
+                BoneName = str(bone.getAttributeNode('name').value)
+                BoneID = int(bone.getAttributeNode('id').value)
+                OGRE_Bone['name'] = BoneName
+                OGRE_Bone['id'] = BoneID
+                            
+                for b in bone.childNodes:
+                    if b.localName == 'position':
+                        x = float(b.getAttributeNode('x').value)
+                        y = float(b.getAttributeNode('y').value)
+                        z = float(b.getAttributeNode('z').value)
+                        OGRE_Bone['position'] = [x,y,z]
+                    if b.localName == 'rotation':
+                        angle = float(b.getAttributeNode('angle').value)
+                        axis = b.childNodes[1]
+                        axisx = float(axis.getAttributeNode('x').value)
+                        axisy = float(axis.getAttributeNode('y').value)
+                        axisz = float(axis.getAttributeNode('z').value)
+                        OGRE_Bone['rotation'] = [axisx,axisy,axisz,angle]
+                
+                OGRE_Bones[BoneName] = OGRE_Bone
+                    
+    for bonehierarchy in xmldoc.getElementsByTagName('bonehierarchy'):
+        for boneparent in bonehierarchy.childNodes:
+            if boneparent.localName == 'boneparent':
+                Bone = str(boneparent.getAttributeNode('bone').value)
+                Parent = str(boneparent.getAttributeNode('parent').value)
+                OGRE_Bones[Bone]['parent'] = Parent
+        
+    return OGRE_Bones
+
+def bParseActionAnimations(xmldoc):
+    
+    Animations = {}
+        
+    for animations in xmldoc.getElementsByTagName('animations'):
+        for animation in animations.getElementsByTagName('animation'):
+            aniname = str(animation.getAttributeNode('name').value)
+            #print aniname
+            Track = {}
+            for tracks in animation.getElementsByTagName('tracks'):
+                for track in tracks.getElementsByTagName('track'):
+                    trackname = str(track.getAttributeNode('bone').value)
+                    Track[trackname] = []
+                    for keyframes in track.getElementsByTagName('keyframes'):
+                        for keyframe in keyframes.getElementsByTagName('keyframe'):
+                            time = float(keyframe.getAttributeNode('time').value)
+                            for translate in keyframe.getElementsByTagName('translate'):
+                                x = float(translate.getAttributeNode('x').value)
+                                y = float(translate.getAttributeNode('y').value)
+                                z = float(translate.getAttributeNode('z').value)
+                                translate = [x,y,z]
+                            for rotate in keyframe.getElementsByTagName('rotate'):
+                                angle = float(rotate.getAttributeNode('angle').value)
+                                for axis in rotate.getElementsByTagName('axis'):
+                                    rx = float(axis.getAttributeNode('x').value)
+                                    ry = float(axis.getAttributeNode('y').value)
+                                    rz = float(axis.getAttributeNode('z').value)
+                                rotation = [rx,ry,rz,angle]
+                            Track[trackname].append([time,translate,rotation])
+                Animations[aniname] = Track
+
+    return Animations
+
+#### Writing the Actions
+
+def bCreateActions(ActionsDic,armaturename,BonesDic):
+
+    global BonesData, bonesData
+    BonesData = bonesData
+
+    #armature = Object.Get(armaturename)
+    print("armature Name: %s" % armaturename)
+    armature = bpy.data.objects.get(armaturename)
+    pose = armature.pose
+    restpose = armature.data
+    armature.animation_data_create()
+    
+    #ActionsDic.popitem()
+        
+    for Action in ActionsDic.keys():
+        
+        armature.animation_data.action = bpy.data.actions.new(name=Action)
+        print("Action Name: %s" % Action)
+        #newAction.setActive(armature)
+        
+        isActionData = False
+        
+        for track in ActionsDic[Action].keys():
+            isActionData = True
+            rpbone = restpose.bones[track]          
+            #rpbonequat = rpbone.matrix['BONESPACE'].rotationPart().toQuat()            
+            rpbonetrans = Vector([BonesData[track]['position'][2], BonesData[track]['position'][0], BonesData[track]['position'][1]])
+            sprot = BonesDic[track]['rotation']
+            sploc = BonesDic[track]['position']
+            spbonequat = Quaternion(Vector([sprot[2],sprot[0],sprot[1]]),math.degrees(sprot[3]))
+            spbonetrans = Vector([sploc[2], sploc[0], sploc[1]])
+            #quatdiff = Mathutils.DifferenceQuats(rpbonequat,spbonequat).toMatrix()
+            transdiff = spbonetrans - rpbonetrans           
+            pbone = pose.bones[track]
+            lastTime = ActionsDic[Action][track][len(ActionsDic[Action][track])-1][0]
+            
+            for kfrs in ActionsDic[Action][track]:
+                
+                frame = int(1+(kfrs[0]*25))             
+                
+                # in ActionDic = [animation][bone]{[time], [locX, locY, locZ], [rotX, rotY, rotZ, rotAngle]}
+                quataction = Quaternion(Vector([kfrs[2][2],kfrs[2][0],kfrs[2][1]]),math.degrees(kfrs[2][3])).to_matrix()
+                
+                #quat = (quataction*quatdiff).toQuat()          
+                #pbone.quat = quat
+                #pbone.quat = quataction
+                #print("kfrs[0]: %d" % kfrs[0])
+                #print("frame: %d" % frame)
+
+                pbone.keyframe_insert(data_path="location") 
+                pbone.location = Vector([kfrs[1][2],kfrs[1][0],kfrs[1][1]]) + transdiff
+                if('parent' in BonesDic[track]):
+                    if(BonesDic[track]['parent'] == 'root'):
+                        pbone.location = Vector([kfrs[1][2],-kfrs[1][1],kfrs[1][0]]) + Vector([transdiff[2],-transdiff[0],-transdiff[1]])
+                                    
+                pbone.keyframe_insert(data_path="location")
+        # only if there are actions     
+        if(isActionData):
+            #todo: must fix
+            #newAction.getAllChannelIpos()
+            #ChannelIPOS = armature.animation_data.action.getAllChannelIpos()
+            for bone in BonesDic.keys():
+                #if not bone in ChannelIPOS.keys() and not bone == 'root':
+                if not bone == 'root':
+                    #rpbonequat = restpose.bones[bone].matrix['BONESPACE'].rotationPart().toQuat()
+                    sprot = BonesDic[bone]['rotation']
+                    spbonequat = Quaternion(Vector([sprot[2],sprot[0],sprot[1]]),math.degrees(sprot[3]))
+                    #quatdiff = Mathutils.DifferenceQuats(rpbonequat,spbonequat)
+                    pbone = pose.bones[bone]
+                    #pbone.quat = quatdiff
+                    #pbone.quat = spbonequat
+                    pbone.keyframe_insert(data_path="location", index=1)
+                    pbone.keyframe_insert(data_path="location")#, index=(int(1+lastTime*25)))
+
 def bCreateMesh(meshData, folder, name, filepath):
     
     if 'skeleton' in meshData:
@@ -690,6 +837,9 @@ def bCreateSkeleton(meshData, name):
     
     if 'skeleton' not in meshData:
         return
+
+    #temp global to transfer over
+    global bonesData
     bonesData = meshData['skeleton']
 
     # create Armature
@@ -1010,7 +1160,13 @@ def bCreateSubMeshes(meshData, meshName):
             area.spaces.active.viewport_shade='TEXTURED'
     
     return allObjects
-        
+
+def bAddAnimation(xml_doc, name):
+    # get skeleton in rest pose and action animation
+    BonesDic = bParseAnimationSkeleton(xml_doc)
+    Actions = bParseActionAnimations(xml_doc)
+
+    bCreateActions(Actions, name, BonesDic)        
 
 def load(operator, context, filepath,       
          ogreXMLconverter=None,
