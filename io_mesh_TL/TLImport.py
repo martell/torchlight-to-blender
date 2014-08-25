@@ -2,19 +2,19 @@
 
 """
 Name: 'OGRE for Torchlight (*.MESH)'
-Blender: 2.59, 2.62, 2.63a
+Blender: 2.59 and 2.62
 Group: 'Import/Export'
 Tooltip: 'Import/Export Torchlight OGRE mesh files'
     
-Author: Dusho
+Author: Martell
 
-Thanks goes to 'goatman' for his port of Ogre export script from 2.49b to 2.5x,
+Thanks goes to 'Dusho' for original project and goatman' for his port of Ogre export script from 2.49b to 2.5x,
 and 'CCCenturion' for trying to refactor the code to be nicer (to be included)
 
 """
 
-__author__ = "Dusho"
-__version__ = "0.6.2 09-Mar-2013"
+__author__ = "Martell"
+__version__ = "0.6.3 25-Aug-2014"
 
 __bpydoc__ = """\
 This script imports/exports Torchlight Ogre models into/from Blender.
@@ -31,8 +31,9 @@ Missing:<br>
 
 Known issues:<br>
     * imported materials will loose certain informations not applicable to Blender when exported
-     
+    * animations are imported from skeleton files but are still broken
 History:<br>
+    * v0.6.3   (25-Aug-2014) - start work to support animations
     * v0.6.2   (09-Mar-2013) - bug fixes (working with materials+textures), added 'Apply modifiers' and 'Copy textures'
     * v0.6.1   (27-Sep-2012) - updated to work with Blender 2.63a
     * v0.6     (01-Sep-2012) - added skeleton import + vertex weights import/export
@@ -83,15 +84,16 @@ MESHDATA:
 #from Blender import *
 from xml.dom import minidom
 import bpy
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Quaternion
 import math
 import os
 
 SHOW_IMPORT_DUMPS = False
 SHOW_IMPORT_TRACE = False
 DEFAULT_KEEP_XML = False
+IMPORT_ANIMATIONS = True
 # default blender version of script
-blender_version = 259
+blender_version = 271 #update to more recent version
 
 #ogreXMLconverter=None
 
@@ -1089,7 +1091,25 @@ def load(operator, context, filepath,
             if 'skeleton' in meshData:
                 os.unlink("%s" % skeletonFileXml)
 
-            
+    if IMPORT_ANIMATIONS:
+    # search directory for .skeleton
+        for filename in os.listdir(folder):
+            filename = filename.lower()
+
+            # get the skeleton as .xml file
+            if (".skeleton" in filename):
+                if (".xml" not in filename):
+                    pathAnimations = os.path.join(folder, filename)
+                    os.system('%s "%s"' % (ogreXMLconverter, pathAnimations))
+                    pathAnimXml = pathAnimations + ".xml"
+
+                    skeleton_data = xOpenFile(pathAnimXml)
+                    #bAddAnimation(skeleton_data, onlyName)
+
+            if not keep_xml:
+                # cleanup by deleting the XML file we created
+                os.unlink("%s" % pathAnimXml)
+
     if SHOW_IMPORT_TRACE:
         print("folder: %s" % folder)
         print("nameDotMesh: %s" % nameDotMesh)
