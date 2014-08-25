@@ -24,15 +24,15 @@ Blender: 2.59 and 2.62
 Group: 'Import/Export'
 Tooltip: 'Import/Export Torchlight OGRE mesh files'
     
-Author: Dusho
+Author: Martell
 
-Thanks goes to 'goatman' for his port of Ogre export script from 2.49b to 2.5x,
+Thanks goes to 'Dusho' for original project and goatman' for his port of Ogre export script from 2.49b to 2.5x,
 and 'CCCenturion' for trying to refactor the code to be nicer (to be included)
 
 """
 
-__author__ = "Dusho"
-__version__ = "0.6.2 09-Mar-2013"
+__author__ = "Martell"
+__version__ = "0.6.3 25-Aug-2014"
 
 __bpydoc__ = """\
 This script imports/exports Torchlight Ogre models into/from Blender.
@@ -49,8 +49,9 @@ Missing:<br>
 
 Known issues:<br>
     * imported materials will loose certain informations not applicable to Blender when exported
-     
+    * animations are imported from skeleton files but are still broken
 History:<br>
+    * v0.6.3   (25-Aug-2014) - start work to support animations
     * v0.6.2   (09-Mar-2013) - bug fixes (working with materials+textures), added 'Apply modifiers' and 'Copy textures'
     * v0.6.1   (27-Sep-2012) - updated to work with Blender 2.63a
     * v0.6     (01-Sep-2012) - added skeleton import + vertex weights import/export
@@ -65,12 +66,12 @@ History:<br>
 
 bl_info = {
     "name": "Torchlight MESH format",
-    "author": "Dusho",
+    "author": "Martell",
     "blender": (2, 5, 9),
     "api": 35622,
     "location": "File > Import-Export",
     "description": ("Import-Export Torchlight Model, Import MESH, UV's, "
-                    "materials and textures"),
+                    "materials and textures animations"),
     "warning": "",
     "wiki_url": (""),
     "tracker_url": "",
@@ -85,7 +86,7 @@ if "bpy" in locals():
         imp.reload(TLExport)
 
 # Path for your OgreXmlConverter
-OGRE_XML_CONVERTER = "D:\stuff\Torchlight_modding\orge_tools\OgreXmlConverter.exe"
+OGRE_XML_CONVERTER = "C:/msys64/mingw64/bin/OgreXmlConverter.exe"
 
 import bpy
 from bpy.props import (BoolProperty,
